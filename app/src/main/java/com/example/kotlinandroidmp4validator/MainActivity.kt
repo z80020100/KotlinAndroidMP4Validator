@@ -112,6 +112,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             var validCount = 0
+            var warningCount = 0
             var invalidCount = 0
 
             for ((index, assetPath) in assetPaths.withIndex()) {
@@ -121,14 +122,18 @@ class MainActivity : AppCompatActivity() {
                 binding.tvProgress.text = buildString {
                     append("${index + 1}/$totalFiles")
                     append(" (${(index + 1) * 100 / totalFiles}%)")
-                    append("  |  OK:$validCount  NG:$invalidCount")
+                    append("  |  OK:$validCount  WARN:$warningCount  NG:$invalidCount")
                 }
 
                 val result = withContext(Dispatchers.IO) {
                     Mp4Validator.validate(assets, assetPath)
                 }
 
-                if (result.isValid) validCount++ else invalidCount++
+                when (result.status.severity) {
+                    Severity.VALID -> validCount++
+                    Severity.WARNING -> warningCount++
+                    Severity.INVALID -> invalidCount++
+                }
 
                 adapter.addResult(result)
                 binding.progressBar.progress = index + 1
@@ -175,8 +180,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSummary(results: List<ValidationResult>, totalTimeMs: Long) {
         val total = results.size
-        val valid = results.count { it.isValid }
-        val invalid = total - valid
+        val sev = severityCounts(results)
+        val valid = sev[Severity.VALID] ?: 0
+        val warning = sev[Severity.WARNING] ?: 0
+        val invalid = sev[Severity.INVALID] ?: 0
         val empty = results.count { it.status == ValidationStatus.EMPTY_FILE }
         val notFound = results.count { it.status == ValidationStatus.NOT_FOUND }
         val noDuration = results.count { it.status == ValidationStatus.INVALID_MP4_NO_DURATION }
@@ -186,7 +193,8 @@ class MainActivity : AppCompatActivity() {
 
         binding.layoutSummary.visibility = View.VISIBLE
 
-        binding.tvSummaryLine1.text = "Total: $total  |  Valid: $valid  |  Failed: $invalid"
+        binding.tvSummaryLine1.text =
+            "Total: $total  |  Valid: $valid  |  Warning: $warning  |  Failed: $invalid"
 
         binding.tvSummaryLine2.text = buildString {
             append("Empty: $empty  |  Not Found: $notFound  |  ")
@@ -235,8 +243,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun generateReport(results: List<ValidationResult>, totalTimeMs: Long): String {
         val total = results.size
-        val valid = results.count { it.isValid }
-        val invalid = total - valid
+        val sev = severityCounts(results)
+        val valid = sev[Severity.VALID] ?: 0
+        val warning = sev[Severity.WARNING] ?: 0
+        val invalid = sev[Severity.INVALID] ?: 0
         val sb = StringBuilder()
 
         sb.appendLine("=".repeat(60))
@@ -253,14 +263,16 @@ class MainActivity : AppCompatActivity() {
         sb.appendLine("       SUMMARY")
         sb.appendLine("=".repeat(60))
         sb.appendLine()
+        val pct = { n: Int -> if (total > 0) n * 100 / total else 0 }
         sb.appendLine("Total Files:     $total")
-        sb.appendLine("Valid:           $valid (${if (total > 0) valid * 100 / total else 0}%)")
-        sb.appendLine("Invalid:         $invalid (${if (total > 0) invalid * 100 / total else 0}%)")
+        sb.appendLine("Valid:           $valid (${pct(valid)}%)")
+        sb.appendLine("Warning:         $warning (${pct(warning)}%)")
+        sb.appendLine("Invalid:         $invalid (${pct(invalid)}%)")
 
         val byStatus = results.groupBy { it.status }
         for (status in ValidationStatus.entries) {
             val count = byStatus[status]?.size ?: 0
-            if (count > 0 && status != ValidationStatus.VALID) {
+            if (count > 0 && status.isFailure) {
                 sb.appendLine("  - ${status.label}: $count")
             }
         }
@@ -317,7 +329,7 @@ class MainActivity : AppCompatActivity() {
         for ((index, result) in results.withIndex()) {
             sb.appendLine("%-5d %-12s %-40s %10s %10s %6dms".format(
                 index + 1,
-                if (result.isValid) "VALID" else result.status.label,
+                result.status.label,
                 result.fileName.take(40),
                 result.formatFileSize(),
                 result.durationMs?.let { "${it}ms" } ?: "-",
@@ -334,6 +346,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        private fun severityCounts(results: List<ValidationResult>): Map<Severity, Int> =
+            results.groupingBy { it.status.severity }.eachCount()
+
         fun formatDuration(ms: Long): String {
             val seconds = ms / 1000
             val minutes = seconds / 60

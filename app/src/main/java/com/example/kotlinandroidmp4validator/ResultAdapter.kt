@@ -31,31 +31,24 @@ class ResultAdapter : RecyclerView.Adapter<ResultAdapter.ViewHolder>() {
             tvFileName.text = result.fileName
             tvTime.text = "${result.validationTimeMs}ms"
 
-            when (result.status) {
-                ValidationStatus.VALID -> {
-                    tvStatusIcon.text = "O"
-                    tvStatusIcon.setTextColor(ContextCompat.getColor(ctx, R.color.status_valid))
-                    tvDetails.text = "${result.formatFileSize()} | ${result.durationMs}ms"
-                    itemRoot.setBackgroundColor(Color.TRANSPARENT)
-                }
-                ValidationStatus.NOT_FOUND -> {
-                    tvStatusIcon.text = "?"
-                    tvStatusIcon.setTextColor(ContextCompat.getColor(ctx, R.color.status_not_found))
-                    tvDetails.text = "File not found"
-                    itemRoot.setBackgroundColor(ContextCompat.getColor(ctx, R.color.bg_invalid))
-                }
-                ValidationStatus.EMPTY_FILE -> {
-                    tvStatusIcon.text = "X"
-                    tvStatusIcon.setTextColor(ContextCompat.getColor(ctx, R.color.status_empty))
-                    tvDetails.text = "Empty file (0 bytes)"
-                    itemRoot.setBackgroundColor(ContextCompat.getColor(ctx, R.color.bg_invalid))
-                }
-                else -> {
-                    tvStatusIcon.text = "X"
-                    tvStatusIcon.setTextColor(ContextCompat.getColor(ctx, R.color.status_invalid))
-                    tvDetails.text = "${result.formatFileSize()} | ${result.status.label}: ${result.errorMessage ?: "unknown"}"
-                    itemRoot.setBackgroundColor(ContextCompat.getColor(ctx, R.color.bg_invalid))
-                }
+            val (iconText, iconColor) = when (result.status.severity) {
+                Severity.VALID -> "O" to R.color.status_valid
+                Severity.WARNING -> "!" to R.color.status_warning
+                Severity.INVALID -> "X" to R.color.status_invalid
+            }
+            tvStatusIcon.text = iconText
+            tvStatusIcon.setTextColor(ContextCompat.getColor(ctx, iconColor))
+            itemRoot.setBackgroundColor(
+                if (result.status.isFailure) ContextCompat.getColor(ctx, R.color.bg_invalid)
+                else Color.TRANSPARENT
+            )
+
+            tvDetails.text = when (result.status) {
+                ValidationStatus.VALID -> "${result.formatFileSize()} | ${result.durationMs}ms"
+                ValidationStatus.VALID_TAIL_VERIFIED -> "${result.formatFileSize()} | ${result.durationMs}ms | tail-verified"
+                ValidationStatus.NOT_FOUND -> "File not found"
+                ValidationStatus.EMPTY_FILE -> "Empty file (0 bytes)"
+                else -> "${result.formatFileSize()} | ${result.status.label}: ${result.errorMessage ?: "unknown"}"
             }
         }
     }
