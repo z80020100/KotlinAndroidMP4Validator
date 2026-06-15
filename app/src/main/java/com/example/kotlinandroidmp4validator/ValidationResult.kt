@@ -1,14 +1,17 @@
 package com.example.kotlinandroidmp4validator
 
-enum class ValidationStatus(val label: String) {
-    VALID("Valid"),
-    NOT_FOUND("Not Found"),
-    EMPTY_FILE("Empty File"),
-    INVALID_MP4_NO_DURATION("No Duration"),
-    INVALID_MP4_FRAME_DECODE_FAILED("Frame Decode Failed"),
-    INVALID_MP4_EXCEPTION("Exception");
+enum class Severity { VALID, WARNING, INVALID }
 
-    val isFailure: Boolean get() = this != VALID
+enum class ValidationStatus(val label: String, val severity: Severity) {
+    VALID("Valid", Severity.VALID),
+    VALID_TAIL_VERIFIED("Valid (tail-verified)", Severity.WARNING),
+    NOT_FOUND("Not Found", Severity.INVALID),
+    EMPTY_FILE("Empty File", Severity.INVALID),
+    INVALID_MP4_NO_DURATION("No Duration", Severity.INVALID),
+    INVALID_MP4_FRAME_DECODE_FAILED("Frame Decode Failed", Severity.INVALID),
+    INVALID_MP4_EXCEPTION("Exception", Severity.INVALID);
+
+    val isFailure: Boolean get() = severity == Severity.INVALID
 }
 
 data class ValidationResult(
@@ -20,7 +23,7 @@ data class ValidationResult(
     val validationTimeMs: Long,
     val errorMessage: String? = null
 ) {
-    val isValid: Boolean get() = status == ValidationStatus.VALID
+    val isValid: Boolean get() = !status.isFailure
 
     fun formatFileSize(): String {
         return when {

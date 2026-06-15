@@ -110,13 +110,13 @@ object Mp4Validator {
                 val status: ValidationStatus
                 val errorMessage: String?
                 if (tailIntact) {
-                    status = ValidationStatus.VALID
+                    status = ValidationStatus.VALID_TAIL_VERIFIED
                     errorMessage = null
-                    Log.w(TAG, "Frame decode timed out but tail is intact (decoder flakiness, file OK): $assetPath")
+                    Log.w(TAG, "[WARNING] frame decode timed out but tail/NALU intact: $assetPath")
                 } else {
                     status = ValidationStatus.INVALID_MP4_FRAME_DECODE_FAILED
                     errorMessage = "Frame decode failed and tail integrity check confirmed missing/zero-filled data near ${seekTimeUs / 1000}ms (of ${durationMs}ms)"
-                    Log.w(TAG, "Frame decode failed and tail check confirmed truncated/zero-filled mdat: $assetPath")
+                    Log.e(TAG, "[INVALID] frame decode failed and tail confirmed truncated/zero-filled: $assetPath")
                 }
                 return ValidationResult(
                     fileName = fileName,
@@ -130,6 +130,7 @@ object Mp4Validator {
             }
 
             frame.recycle()
+            Log.d(TAG, "[VALID] frame decode succeeded: $assetPath")
 
             ValidationResult(
                 fileName = fileName,
