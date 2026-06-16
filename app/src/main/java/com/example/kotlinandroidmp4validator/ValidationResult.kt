@@ -21,9 +21,15 @@ data class ValidationResult(
     val status: ValidationStatus,
     val durationMs: Long? = null,
     val validationTimeMs: Long,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val retryCount: Int = 0,
+    val retryPassCount: Int = 0
 ) {
     val isValid: Boolean get() = !status.isFailure
+
+    val isRetryable: Boolean get() = status.severity != Severity.VALID
+
+    val retryFailCount: Int get() = retryCount - retryPassCount
 
     fun formatFileSize(): String {
         return when {

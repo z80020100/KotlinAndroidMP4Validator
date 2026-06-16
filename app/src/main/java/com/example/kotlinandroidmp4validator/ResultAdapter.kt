@@ -1,7 +1,12 @@
 package com.example.kotlinandroidmp4validator
 
+import android.content.Context
 import android.graphics.Color
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
@@ -50,6 +55,13 @@ class ResultAdapter : RecyclerView.Adapter<ResultAdapter.ViewHolder>() {
                 ValidationStatus.EMPTY_FILE -> "Empty file (0 bytes)"
                 else -> "${result.formatFileSize()} | ${result.status.label}: ${result.errorMessage ?: "unknown"}"
             }
+
+            if (result.retryCount > 0) {
+                tvRetryStats.visibility = View.VISIBLE
+                tvRetryStats.text = buildRetryStats(ctx, result)
+            } else {
+                tvRetryStats.visibility = View.GONE
+            }
         }
     }
 
@@ -63,12 +75,22 @@ class ResultAdapter : RecyclerView.Adapter<ResultAdapter.ViewHolder>() {
         return true
     }
 
+    fun updateResult(result: ValidationResult) {
+        val index = allResults.indexOfFirst { it.filePath == result.filePath }
+        if (index < 0) return
+        allResults[index] = result
+        refilter()
+    }
+
     fun setSeverityVisible(severity: Severity, visible: Boolean) {
         if (visible) visibleSeverities.add(severity) else visibleSeverities.remove(severity)
         refilter()
     }
 
     fun getAllResults(): List<ValidationResult> = allResults.toList()
+
+    fun getResult(filePath: String): ValidationResult? =
+        allResults.firstOrNull { it.filePath == filePath }
 
     fun clear() {
         allResults.clear()
@@ -83,4 +105,21 @@ class ResultAdapter : RecyclerView.Adapter<ResultAdapter.ViewHolder>() {
 
     private fun isVisible(result: ValidationResult): Boolean =
         result.status.severity in visibleSeverities
+
+    private fun buildRetryStats(ctx: Context, result: ValidationResult): CharSequence {
+        val green = ContextCompat.getColor(ctx, R.color.status_valid)
+        val red = ContextCompat.getColor(ctx, R.color.status_invalid)
+        return SpannableStringBuilder().apply {
+            append("retry ${result.retryCount}×: ")
+            appendColored("${result.retryPassCount} pass", green)
+            append(" / ")
+            appendColored("${result.retryFailCount} fail", red)
+        }
+    }
+
+    private fun SpannableStringBuilder.appendColored(text: String, color: Int) {
+        val start = length
+        append(text)
+        setSpan(ForegroundColorSpan(color), start, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
 }
