@@ -55,8 +55,15 @@ class MainActivity : AppCompatActivity() {
             if (isRunning) cancelValidation() else startValidation()
         }
         binding.btnExport.setOnClickListener { exportReport() }
-        binding.cbShowFailuresOnly.setOnCheckedChangeListener { _, isChecked ->
-            adapter.setShowOnlyFailures(isChecked)
+
+        listOf(
+            binding.cbShowValid to Severity.VALID,
+            binding.cbShowWarning to Severity.WARNING,
+            binding.cbShowInvalid to Severity.INVALID
+        ).forEach { (checkbox, severity) ->
+            checkbox.setOnCheckedChangeListener { _, isChecked ->
+                adapter.setSeverityVisible(severity, isChecked)
+            }
         }
     }
 
@@ -135,10 +142,10 @@ class MainActivity : AppCompatActivity() {
                     Severity.INVALID -> invalidCount++
                 }
 
-                adapter.addResult(result)
+                val inserted = adapter.addResult(result)
                 binding.progressBar.progress = index + 1
 
-                if (!binding.cbShowFailuresOnly.isChecked) {
+                if (inserted) {
                     binding.rvResults.scrollToPosition(adapter.itemCount - 1)
                 }
             }

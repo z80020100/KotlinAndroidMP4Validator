@@ -11,7 +11,7 @@ class ResultAdapter : RecyclerView.Adapter<ResultAdapter.ViewHolder>() {
 
     private val allResults = mutableListOf<ValidationResult>()
     private var filteredResults = mutableListOf<ValidationResult>()
-    private var showOnlyFailures = false
+    private val visibleSeverities = Severity.entries.toMutableSet()
 
     class ViewHolder(val binding: ItemValidationResultBinding) :
         RecyclerView.ViewHolder(binding.root)
@@ -55,16 +55,16 @@ class ResultAdapter : RecyclerView.Adapter<ResultAdapter.ViewHolder>() {
 
     override fun getItemCount(): Int = filteredResults.size
 
-    fun addResult(result: ValidationResult) {
+    fun addResult(result: ValidationResult): Boolean {
         allResults.add(result)
-        if (!showOnlyFailures || result.status.isFailure) {
-            filteredResults.add(result)
-            notifyItemInserted(filteredResults.size - 1)
-        }
+        if (!isVisible(result)) return false
+        filteredResults.add(result)
+        notifyItemInserted(filteredResults.size - 1)
+        return true
     }
 
-    fun setShowOnlyFailures(show: Boolean) {
-        showOnlyFailures = show
+    fun setSeverityVisible(severity: Severity, visible: Boolean) {
+        if (visible) visibleSeverities.add(severity) else visibleSeverities.remove(severity)
         refilter()
     }
 
@@ -77,11 +77,10 @@ class ResultAdapter : RecyclerView.Adapter<ResultAdapter.ViewHolder>() {
     }
 
     private fun refilter() {
-        filteredResults = if (showOnlyFailures) {
-            allResults.filter { it.status.isFailure }.toMutableList()
-        } else {
-            allResults.toMutableList()
-        }
+        filteredResults = allResults.filter(::isVisible).toMutableList()
         notifyDataSetChanged()
     }
+
+    private fun isVisible(result: ValidationResult): Boolean =
+        result.status.severity in visibleSeverities
 }
