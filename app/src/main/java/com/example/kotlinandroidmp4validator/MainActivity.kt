@@ -10,6 +10,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.kotlinandroidmp4validator.databinding.ActivityMainBinding
+import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -29,6 +31,7 @@ class MainActivity : AppCompatActivity() {
     private var timerJob: Job? = null
     private var startTimeMs = 0L
     private var isRunning = false
+    private var retryTargets: List<String> = emptyList()
 
     private val assetDirs = listOf("encoded_videos", "filler")
 
@@ -54,6 +57,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnStart.setOnClickListener {
             if (isRunning) cancelValidation() else startValidation()
         }
+        binding.btnRetry.setOnClickListener { startRetry() }
         binding.btnExport.setOnClickListener { exportReport() }
 
         listOf(
@@ -89,12 +93,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun startValidation() {
         adapter.clear()
+        retryTargets = emptyList()
         binding.layoutSummary.visibility = View.GONE
         binding.btnExport.isEnabled = false
         setRunningState(true)
 
         validationJob = lifecycleScope.launch {
-            binding.layoutProgress.visibility = View.VISIBLE
             binding.tvCurrentFile.text = "Collecting asset files..."
             binding.tvProgress.text = "Scanning..."
 
@@ -111,12 +115,7 @@ class MainActivity : AppCompatActivity() {
             binding.progressBar.progress = 0
             startTimeMs = System.currentTimeMillis()
 
-            timerJob = launch {
-                while (isActive) {
-                    updateElapsedTime()
-                    delay(500)
-                }
-            }
+            startTimer()
 
             var validCount = 0
             var warningCount = 0
@@ -150,13 +149,25 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            timerJob?.cancel()
-            val totalTimeMs = System.currentTimeMillis() - startTimeMs
-            updateElapsedTime()
-            showSummary(adapter.getAllResults(), totalTimeMs)
-            binding.tvCurrentFile.text = "Validation complete!"
-            binding.btnExport.isEnabled = true
-            setRunningState(false)
+            retryTargets = adapter.getAllResults().filter { it.isRetryable }.map { it.filePath }
+            finishRun("Validation complete!")
+        }
+    }
+
+    private fun startRetry() {
+        if (retryTargets.isEmpty()) return
+        binding.btnExport.isEnabled = false
+        setRunningState(true)
+
+        validationJob = lifecycleScope.launch {
+            binding.progressBar.max = retryTargets.size
+            binding.progressBar.progress = 0
+            startTimeMs = System.currentTimeMillis()
+
+            startTimer()
+
+            retryFailures()
+            finishRun("Retry complete!")
         }
     }
 
@@ -168,15 +179,55 @@ class MainActivity : AppCompatActivity() {
         if (results.isNotEmpty()) {
             val totalTimeMs = System.currentTimeMillis() - startTimeMs
             showSummary(results, totalTimeMs)
-            binding.tvCurrentFile.text = "Validation cancelled"
+            binding.tvCurrentFile.text = "Cancelled"
             binding.btnExport.isEnabled = true
         }
         setRunningState(false)
     }
 
+    private suspend fun retryFailures() {
+        for ((index, path) in retryTargets.withIndex()) {
+            if (!coroutineContext.isActive) break
+
+            val current = adapter.getResult(path) ?: continue
+            binding.tvCurrentFile.text = current.fileName
+            binding.tvProgress.text = "Retry ${index + 1}/${retryTargets.size}"
+
+            val fresh = withContext(Dispatchers.IO) {
+                Mp4Validator.validate(assets, path)
+            }
+            val pass = current.retryPassCount +
+                if (fresh.status.severity == Severity.VALID) 1 else 0
+            adapter.updateResult(
+                fresh.copy(retryCount = current.retryCount + 1, retryPassCount = pass)
+            )
+            binding.progressBar.progress = index + 1
+        }
+    }
+
+    private fun finishRun(message: String) {
+        timerJob?.cancel()
+        val totalTimeMs = System.currentTimeMillis() - startTimeMs
+        updateElapsedTime()
+        showSummary(adapter.getAllResults(), totalTimeMs)
+        binding.tvCurrentFile.text = message
+        binding.btnExport.isEnabled = true
+        setRunningState(false)
+    }
+
+    private fun CoroutineScope.startTimer() {
+        timerJob = launch {
+            while (isActive) {
+                updateElapsedTime()
+                delay(500)
+            }
+        }
+    }
+
     private fun setRunningState(running: Boolean) {
         isRunning = running
         binding.btnStart.text = if (running) "Cancel" else "Start Validation"
+        binding.btnRetry.isEnabled = !running && retryTargets.isNotEmpty()
         if (running) binding.layoutProgress.visibility = View.VISIBLE
     }
 

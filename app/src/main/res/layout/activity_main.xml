@@ -46,15 +46,24 @@
                 android:textAllCaps="false" />
 
             <Button
-                android:id="@+id/btnExport"
+                android:id="@+id/btnRetry"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
-                android:text="Export Report"
+                android:text="Retry WARN/NG"
                 android:textAllCaps="false"
                 android:enabled="false" />
         </LinearLayout>
+
+        <Button
+            android:id="@+id/btnExport"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Export Report"
+            android:textAllCaps="false"
+            android:enabled="false" />
     </LinearLayout>
 
     <!-- Progress Section -->
