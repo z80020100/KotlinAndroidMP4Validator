@@ -33,7 +33,11 @@ class MainActivity : AppCompatActivity() {
     private var isRunning = false
     private var retryTargets: List<String> = emptyList()
 
-    private val assetDirs = listOf("encoded_videos", "filler")
+    private fun assetDirs(): List<String> =
+        assets.list("").orEmpty().filter { !assets.list(it).isNullOrEmpty() }.sorted()
+
+    private fun mp4FilesIn(dir: String): List<String> =
+        assets.list(dir).orEmpty().filter { it.endsWith(".mp4", ignoreCase = true) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,22 +76,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showAssetInfo() {
-        val counts = assetDirs.map { dir ->
-            val files = assets.list(dir)?.filter { it.endsWith(".mp4", ignoreCase = true) } ?: emptyList()
-            "$dir: ${files.size} files"
-        }
-        val total = assetDirs.sumOf { dir ->
-            assets.list(dir)?.count { it.endsWith(".mp4", ignoreCase = true) } ?: 0
-        }
-        binding.tvAssetInfo.text = "Bundled assets: $total MP4 files (${counts.joinToString(", ")})"
+        val counts = assetDirs().associateWith { mp4FilesIn(it).size }
+        val total = counts.values.sum()
+        val detail = counts.entries.joinToString(", ") { "${it.key}: ${it.value} files" }
+        binding.tvAssetInfo.text = "Bundled assets: $total MP4 files ($detail)"
     }
 
     private fun collectAssetPaths(): List<String> {
-        return assetDirs.flatMap { dir ->
-            val files = assets.list(dir) ?: emptyArray()
-            files.filter { it.endsWith(".mp4", ignoreCase = true) }
-                .sorted()
-                .map { "$dir/$it" }
+        return assetDirs().flatMap { dir ->
+            mp4FilesIn(dir).sorted().map { "$dir/$it" }
         }
     }
 
@@ -314,7 +311,7 @@ class MainActivity : AppCompatActivity() {
         sb.appendLine("Date:      ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())}")
         sb.appendLine("Device:    ${Build.MANUFACTURER} ${Build.MODEL}")
         sb.appendLine("Android:   ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-        sb.appendLine("Source:    Bundled assets (${assetDirs.joinToString(", ")})")
+        sb.appendLine("Source:    Bundled assets (${assetDirs().joinToString(", ")})")
         sb.appendLine()
 
         sb.appendLine("=".repeat(60))
